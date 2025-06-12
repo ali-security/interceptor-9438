@@ -80,6 +80,9 @@ func (m *packetManager) NewPacket(header *rtp.Header, payload []byte, rtxSsrc ui
 		paddingLength := 0
 		if p.header.Padding && p.payload != nil && len(p.payload) > 0 {
 			paddingLength = int(p.payload[len(p.payload)-1])
+			if paddingLength > len(p.payload) {
+				return nil, errPaddingOverflow
+			}
 			p.header.Padding = false
 		}
 

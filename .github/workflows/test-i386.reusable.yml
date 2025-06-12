@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+# SPDX-License-Identifier: MIT
+
+name: Test i386 (reusable)
+on:
+  push:
+  workflow_call:
+    inputs:
+      go-version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  test-i386:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        go-version: ['1.22', '1.23']
+    name: Go i386 ${{ matrix.go-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build worker
+        run: |
+          docker build -t test_runner_i386_${{matrix.go-version}}:latest -<<EOF
+          FROM i386/golang:${{matrix.go-version}}-alpine
+          RUN go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@latest
+          EOF
+
+      - name: Run test
+        run: |
+          if [ -f .github/.ci.conf ]; then . .github/.ci.conf; fi
+          if [ -n "${SKIP_i386_TESTS}" ]; then exit 0; fi
+
+          mkdir -p $HOME/go/pkg/mod $HOME/.cache
+          docker run \
+            -u $(id -u):$(id -g) \
+            -e "GO111MODULE=on" \
+            -e "CGO_ENABLED=0" \
+            -v $GITHUB_WORKSPACE:/go/src/github.com/pion/$(basename $GITHUB_WORKSPACE) \
+            -v $HOME/go/pkg/mod:/go/pkg/mod \
+            -v $HOME/.cache:/.cache \
+            -w /go/src/github.com/pion/$(basename $GITHUB_WORKSPACE) \
+            test_runner_i386_${{matrix.go-version}}:latest \
+            /bin/sh -c "/usr/local/go/bin/go test ${TEST_EXTRA_ARGS:-} -json -v ./... | gotestfmt"              ${TEST_EXTRA_ARGS:-} \
